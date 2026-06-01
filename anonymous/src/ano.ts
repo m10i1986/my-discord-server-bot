@@ -9,14 +9,13 @@ import {
     type SlashCommandOptionsOnlyBuilder,
     type ChatInputCommandInteraction,
     type ModalSubmitInteraction,
-    type SendableChannels,
 } from 'discord.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import type { BotClient } from './client';
 import { hasUserConsented } from './services/database';
-import { sendAnonymousPost } from './services/anonymousPost';
+import { sendAnonymousPostViaInteraction } from './services/anonymousPost';
 
 const WARNING_MD_PATH = path.resolve(__dirname, '../messages/warning.md');
 const PENDING_TTL_MS = 2 * 60 * 1000; // 2分
@@ -104,10 +103,8 @@ async function handleAnoPost(
 
     // 同意済みユーザーはそのまま投稿
     if (hasUserConsented(userId)) {
-        await interaction.deferReply({ ephemeral: true });
-        const channel = interaction.channel as SendableChannels;
-        await sendAnonymousPost(channel, { userId, guildId, channelId, content, attachmentUrl, attachmentName });
-        await interaction.editReply('✅ 匿名メッセージを投稿しました！');
+        await sendAnonymousPostViaInteraction(interaction, { userId, guildId, channelId, content, attachmentUrl, attachmentName });
+        await interaction.followUp({ content: '✅ 匿名メッセージを投稿しました！', ephemeral: true });
         return;
     }
 

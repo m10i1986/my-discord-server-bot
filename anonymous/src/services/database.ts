@@ -76,8 +76,8 @@ export function recordConsent(userId: string): void {
     stmtInsertConsent.run(userId);
 }
 
-export function logPost(post: PostLog): void {
-    stmtInsertPost.run(
+export function logPost(post: PostLog): number {
+    const result = stmtInsertPost.run(
         post.userId,
         post.guildId,
         post.channelId,
@@ -85,6 +85,15 @@ export function logPost(post: PostLog): void {
         post.content,
         post.attachmentUrl,
     );
+    return Number(result.lastInsertRowid);
+}
+
+const stmtUpdateMessageId = db.prepare(
+    'UPDATE anonymous_posts SET message_id = ? WHERE id = ?',
+);
+
+export function updateMessageId(logId: number, messageId: string): void {
+    stmtUpdateMessageId.run(messageId, logId);
 }
 
 export function pruneOldLogs(): number {

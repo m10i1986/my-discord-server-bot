@@ -1,8 +1,8 @@
-import { type Interaction, type SendableChannels } from 'discord.js';
+import { type Interaction } from 'discord.js';
 import type { BotClient } from '../client';
 import { executeAno, executeAnoFromModal } from '../ano';
 import { recordConsent } from '../services/database';
-import { sendAnonymousPost } from '../services/anonymousPost';
+import { sendAnonymousPostViaInteraction } from '../services/anonymousPost';
 
 export async function onInteractionCreate(interaction: Interaction): Promise<void> {
     const client = interaction.client as BotClient;
@@ -83,19 +83,12 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
         return;
     }
 
-    const channel = interaction.guild?.channels.cache.get(pending.channelId) as SendableChannels | undefined;
-
-    if (!channel) {
-        await interaction.update({ content: '⚠️ 投稿先のチャンネルが見つかりませんでした。', components: [] });
-        return;
-    }
-
     try {
         recordConsent(pending.userId);
-        await sendAnonymousPost(channel, pending);
         await interaction.update({ content: '✅ 匿名メッセージを投稿しました！', components: [] });
+        await sendAnonymousPostViaInteraction(interaction, pending);
     } catch (error) {
         console.error('[anonymousPost error]:', error);
-        await interaction.update({ content: '⚠️ 投稿中にエラーが発生しました。', components: [] });
+        await interaction.editReply({ content: '⚠️ 投稿中にエラーが発生しました。', components: [] });
     }
 }
