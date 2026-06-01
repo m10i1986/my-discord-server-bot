@@ -2,7 +2,7 @@ import { type Interaction } from "discord.js";
 import type { BotClient } from "../client";
 import { executeAno, executeAnoFromModal } from "../ano";
 import { recordConsent } from "../services/database";
-import { sendAnonymousPostViaInteraction } from "../services/anonymousPost";
+import { sendAnonymousPost } from "../services/anonymousPost";
 
 export async function onInteractionCreate(interaction: Interaction): Promise<void> {
     const client = interaction.client as BotClient;
@@ -88,8 +88,16 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
 
     try {
         recordConsent(pending.userId);
+        const channel = interaction.channel;
+        if (!channel || !channel.isSendable()) {
+            await interaction.update({
+                content: "⚠️ このチャンネルには投稿できません。",
+                components: [],
+            });
+            return;
+        }
         await interaction.update({ content: "✅ 匿名メッセージを投稿しました！", components: [] });
-        await sendAnonymousPostViaInteraction(interaction, pending);
+        await sendAnonymousPost(channel, pending);
     } catch (error) {
         console.error("[anonymousPost error]:", error);
         await interaction.editReply({
