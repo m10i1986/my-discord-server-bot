@@ -12,10 +12,11 @@
         "status": "PM2_HOME=\"$INIT_CWD/.pm2\" pm2 list",
         "monit": "PM2_HOME=\"$INIT_CWD/.pm2\" pm2 monit",
         "setup:journald": "PM2_HOME=\"$INIT_CWD/.pm2\" pm2 install pm2-journald",
-        "build:all": "pnpm --filter '*' run build"
+        "install:all": "pnpm --filter '*' install",
+        "build:all": "pnpm --filter '*' build",
+        "format:all": "pnpm --filter '*' format"
     },
     "devDependencies": {
         "pm2": "^5.4.3"
-    },
-    "packageManager": "pnpm@10.29.3"
+    }
 }
