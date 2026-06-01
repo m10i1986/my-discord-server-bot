@@ -1,6 +1,6 @@
-import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
-import type { RepliableInteraction, SendableChannels } from 'discord.js';
-import { logPost, updateMessageId } from './database';
+import { AttachmentBuilder, EmbedBuilder } from "discord.js";
+import type { RepliableInteraction, SendableChannels } from "discord.js";
+import { logPost, updateMessageId } from "./database";
 
 export interface AnonymousPostData {
     readonly userId: string;
@@ -11,10 +11,13 @@ export interface AnonymousPostData {
     readonly attachmentName: string | null;
 }
 
-function buildEmbed(data: AnonymousPostData, logId?: number): { embed: EmbedBuilder; files: AttachmentBuilder[] } {
+function buildEmbed(
+    data: AnonymousPostData,
+    logId?: string,
+): { embed: EmbedBuilder; files: AttachmentBuilder[] } {
     const embed = new EmbedBuilder()
         .setColor(0x95a5a6)
-        .setFooter({ text: logId !== undefined ? `Anonymous (id:${logId})` : 'Anonymous' });
+        .setFooter({ text: logId !== undefined ? `Anonymous (id:${logId})` : "Anonymous" });
 
     if (data.content) {
         embed.setDescription(data.content);
@@ -75,7 +78,12 @@ export async function sendAnonymousPostViaInteraction(
         const sent = await interaction.followUp({ ephemeral: false, embeds: [embed], files });
         sentId = sent.id;
     } else {
-        const sent = await interaction.reply({ ephemeral: false, embeds: [embed], files, fetchReply: true });
+        const sent = await interaction.reply({
+            ephemeral: false,
+            embeds: [embed],
+            files,
+            fetchReply: true,
+        });
         sentId = sent.id;
     }
 

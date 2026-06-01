@@ -1,8 +1,8 @@
-import { Events } from 'discord.js';
-import { config } from './config';
-import { BotClient } from './client';
-import { onReady } from './events/ready';
-import { onInteractionCreate } from './events/interactionCreate';
+import { Events } from "discord.js";
+import { config } from "./config";
+import { BotClient } from "./client";
+import { onReady } from "./events/ready";
+import { onInteractionCreate } from "./events/interactionCreate";
 
 async function main(): Promise<void> {
     const client = new BotClient();

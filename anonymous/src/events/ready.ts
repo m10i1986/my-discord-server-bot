@@ -1,5 +1,5 @@
-import type { Client } from 'discord.js';
-import { pruneOldLogs } from '../services/database';
+import type { Client } from "discord.js";
+import { pruneOldLogs } from "../services/database";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 

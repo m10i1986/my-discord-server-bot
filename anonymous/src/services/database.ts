@@ -1,10 +1,11 @@
-import Database from 'better-sqlite3';
-import * as fs from 'fs';
-import * as path from 'path';
+import Database from "better-sqlite3";
+import * as fs from "fs";
+import * as path from "path";
+import { v7 as uuidv7 } from "uuid";
 
 // __dirname は dist/services/ または src/services/ のどちらでも ../../data が正しい位置
-const DB_DIR = path.resolve(__dirname, '../../data');
-const DB_PATH = path.join(DB_DIR, 'anonymous.db');
+const DB_DIR = path.resolve(__dirname, "../../data");
+const DB_PATH = path.join(DB_DIR, "anonymous.db");
 
 // 1年 = 365日
 const LOG_RETENTION_DAYS = 365;
@@ -16,13 +17,13 @@ if (!fs.existsSync(DB_DIR)) {
 const db = new Database(DB_PATH);
 
 // WAL モードで耐障害性を向上
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-db.pragma('synchronous = NORMAL');
+db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
+db.pragma("synchronous = NORMAL");
 
 db.exec(`
     CREATE TABLE IF NOT EXISTS anonymous_posts (
-        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        id             TEXT    PRIMARY KEY,
         user_id        TEXT    NOT NULL,
         guild_id       TEXT    NOT NULL,
         channel_id     TEXT    NOT NULL,
@@ -52,16 +53,12 @@ export interface PostLog {
     attachmentUrl: string | null;
 }
 
-const stmtHasConsented = db.prepare(
-    'SELECT 1 FROM user_consents WHERE user_id = ?',
-);
-const stmtInsertConsent = db.prepare(
-    'INSERT OR IGNORE INTO user_consents (user_id) VALUES (?)',
-);
+const stmtHasConsented = db.prepare("SELECT 1 FROM user_consents WHERE user_id = ?");
+const stmtInsertConsent = db.prepare("INSERT OR IGNORE INTO user_consents (user_id) VALUES (?)");
 const stmtInsertPost = db.prepare(
     `INSERT INTO anonymous_posts
-        (user_id, guild_id, channel_id, message_id, content, attachment_url)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+        (id, user_id, guild_id, channel_id, message_id, content, attachment_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
 );
 const stmtPrune = db.prepare(
     `DELETE FROM anonymous_posts
@@ -76,8 +73,10 @@ export function recordConsent(userId: string): void {
     stmtInsertConsent.run(userId);
 }
 
-export function logPost(post: PostLog): number {
-    const result = stmtInsertPost.run(
+export function logPost(post: PostLog): string {
+    const id = uuidv7();
+    stmtInsertPost.run(
+        id,
         post.userId,
         post.guildId,
         post.channelId,
@@ -85,14 +84,12 @@ export function logPost(post: PostLog): number {
         post.content,
         post.attachmentUrl,
     );
-    return Number(result.lastInsertRowid);
+    return id;
 }
 
-const stmtUpdateMessageId = db.prepare(
-    'UPDATE anonymous_posts SET message_id = ? WHERE id = ?',
-);
+const stmtUpdateMessageId = db.prepare("UPDATE anonymous_posts SET message_id = ? WHERE id = ?");
 
-export function updateMessageId(logId: number, messageId: string): void {
+export function updateMessageId(logId: string, messageId: string): void {
     stmtUpdateMessageId.run(messageId, logId);
 }
 
