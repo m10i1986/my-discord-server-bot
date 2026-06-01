@@ -1,0 +1,13 @@
+# dependencies (bun install)
+node_modules
+
+# npm
+package-lock.json
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+# PM2 local home
+.pm2

@@ -1,0 +1,31 @@
+{
+    "name": "anonymous",
+    "version": "1.0.0",
+    "description": "匿名メッセージ Discord Bot",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsgo",
+        "start": "node dist/index.js",
+        "dev": "tsx watch src/index.ts",
+        "deploy": "tsx src/deploy-commands.ts",
+        "test": "vitest",
+        "lint": "biome lint --write .",
+        "format": "biome format --write .",
+        "check": "biome check --write ."
+    },
+    "dependencies": {
+        "@discordjs/rest": "^2.4.0",
+        "better-sqlite3": "^11.0.0",
+        "discord-api-types": "^0.37.97",
+        "discord.js": "^14.16.3",
+        "dotenv": "^16.4.5"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "latest",
+        "@types/better-sqlite3": "^7.6.11",
+        "@typescript/native-preview": "latest",
+        "tsx": "^4.16.0",
+        "typescript": "^5.5.0",
+        "vitest": "^2.0.0"
+    }
+}
