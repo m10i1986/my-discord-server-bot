@@ -1,5 +1,5 @@
 import { AttachmentBuilder, EmbedBuilder } from "discord.js";
-import type { RepliableInteraction, SendableChannels } from "discord.js";
+import type { SendableChannels } from "discord.js";
 import { logPost, updateMessageId } from "./database";
 
 export interface AnonymousPostData {
@@ -36,13 +36,8 @@ function buildEmbed(
     return { embed, files };
 }
 
-/**
- * インタラクション Webhook 経由で匿名投稿する。
- * Bot が VIEW_CHANNEL 権限を持たないチャンネルでも投稿可能。
- * 未返信の場合は reply()、返信済みの場合は followUp() を使用する。
- */
-export async function sendAnonymousPostViaInteraction(
-    interaction: RepliableInteraction,
+export async function sendAnonymousPost(
+    channel: SendableChannels,
     data: AnonymousPostData,
 ): Promise<void> {
     const logId = logPost({
@@ -54,20 +49,7 @@ export async function sendAnonymousPostViaInteraction(
         attachmentUrl: data.attachmentUrl,
     });
     const { embed, files } = buildEmbed(data, logId);
+    const sent = await channel.send({ embeds: [embed], files });
 
-    let sentId: string;
-    if (interaction.deferred || interaction.replied) {
-        const sent = await interaction.followUp({ ephemeral: false, embeds: [embed], files });
-        sentId = sent.id;
-    } else {
-        const sent = await interaction.reply({
-            ephemeral: false,
-            embeds: [embed],
-            files,
-            fetchReply: true,
-        });
-        sentId = sent.id;
-    }
-
-    updateMessageId(logId, sentId);
+    updateMessageId(logId, sent.id);
 }

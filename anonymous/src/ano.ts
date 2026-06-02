@@ -15,7 +15,7 @@ import * as path from "path";
 import { randomUUID } from "crypto";
 import type { BotClient } from "./client";
 import { hasUserConsented } from "./services/database";
-import { sendAnonymousPostViaInteraction } from "./services/anonymousPost";
+import { sendAnonymousPost } from "./services/anonymousPost";
 
 const WARNING_MD_PATH = path.resolve(__dirname, "../messages/warning.md");
 const PENDING_TTL_MS = 2 * 60 * 1000; // 2分
@@ -94,13 +94,19 @@ async function handleAnoPost(
     const guildId = interaction.guildId!;
     const channelId = interaction.channelId!;
 
-    // 同意済みユーザーはそのまま投稿
+    // 同意済みユーザーはボタン不要でそのまま公開投稿する。
+    // ephemeral: true で defer することで「X さんが /ano を使用しました」が公開されず、
+    // channel.send() で送信することで実行者名を出さずに全員に見える形で投稿できる。
     if (hasUserConsented(userId)) {
-        // ephemeral: true で defer することで「X さんが /ano を使用しました」が公開されない
         await interaction.deferReply({ ephemeral: true });
-        // 1回目と同様にインタラクション Webhook 経由で投稿する。
-        // Bot がチャンネル閲覧/書き込み権限を持たなくても全員に見える形で投稿可能。
-        await sendAnonymousPostViaInteraction(interaction, {
+        const channel = interaction.channel;
+        if (!channel || !channel.isSendable()) {
+            await interaction.editReply({
+                content: "⚠️ このチャンネルへの書き込み権限がありません。",
+            });
+            return;
+        }
+        await sendAnonymousPost(channel, {
             userId,
             guildId,
             channelId,
