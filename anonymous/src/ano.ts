@@ -15,7 +15,7 @@ import * as path from "path";
 import { randomUUID } from "crypto";
 import type { BotClient } from "./client";
 import { hasUserConsented } from "./services/database";
-import { sendAnonymousPostViaInteraction } from "./services/anonymousPost";
+import { sendAnonymousPost } from "./services/anonymousPost";
 
 const WARNING_MD_PATH = path.resolve(__dirname, "../messages/warning.md");
 const PENDING_TTL_MS = 2 * 60 * 1000; // 2分
@@ -97,9 +97,15 @@ async function handleAnoPost(
     // 同意済みユーザーはそのまま投稿
     if (hasUserConsented(userId)) {
         // ephemeral: true で defer することで「X さんが /ano を使用しました」が公開されない
-        // その後 followUp(ephemeral:false) で Webhook 経由投稿するため VIEW_CHANNEL 権限不要
         await interaction.deferReply({ ephemeral: true });
-        await sendAnonymousPostViaInteraction(interaction, {
+        const channel = interaction.channel;
+        if (!channel || !channel.isSendable()) {
+            await interaction.editReply({
+                content: "⚠️ このチャンネルへの書き込み権限がありません。",
+            });
+            return;
+        }
+        await sendAnonymousPost(channel, {
             userId,
             guildId,
             channelId,
