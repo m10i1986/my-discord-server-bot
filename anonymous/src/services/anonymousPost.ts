@@ -36,24 +36,6 @@ function buildEmbed(
     return { embed, files };
 }
 
-export async function sendAnonymousPost(
-    channel: SendableChannels,
-    data: AnonymousPostData,
-): Promise<void> {
-    const logId = logPost({
-        userId: data.userId,
-        guildId: data.guildId,
-        channelId: data.channelId,
-        messageId: null,
-        content: data.content,
-        attachmentUrl: data.attachmentUrl,
-    });
-    const { embed, files } = buildEmbed(data, logId);
-    const sent = await channel.send({ embeds: [embed], files });
-
-    updateMessageId(logId, sent.id);
-}
-
 /**
  * インタラクション Webhook 経由で匿名投稿する。
  * Bot が VIEW_CHANNEL 権限を持たないチャンネルでも投稿可能。
