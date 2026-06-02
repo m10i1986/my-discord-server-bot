@@ -2,8 +2,8 @@ import {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    MessageFlags,
     ModalBuilder,
-    PermissionFlagsBits,
     TextInputBuilder,
     TextInputStyle,
     SlashCommandBuilder,
@@ -16,7 +16,7 @@ import * as path from "path";
 import { randomUUID } from "crypto";
 import type { BotClient } from "./client";
 import { hasUserConsented } from "./services/database";
-import { sendAnonymousPost } from "./services/anonymousPost";
+import { resolveSendableChannel, sendAnonymousPost } from "./services/anonymousPost";
 
 const WARNING_MD_PATH = path.resolve(__dirname, "../messages/warning.md");
 const PENDING_TTL_MS = 2 * 60 * 1000; // 2分
@@ -50,7 +50,7 @@ export async function executeAno(interaction: ChatInputCommandInteraction): Prom
     if (!interaction.inGuild()) {
         await interaction.reply({
             content: "このコマンドはサーバー内でのみ使用できます。",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         return;
     }
@@ -74,7 +74,7 @@ export async function executeAno(interaction: ChatInputCommandInteraction): Prom
     if (attachment && !ALLOWED_IMAGE_TYPES.has(attachment.contentType ?? "")) {
         await interaction.reply({
             content: "画像ファイル（JPEG / PNG / GIF / WebP）のみ添付可能です。",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         return;
     }
@@ -99,36 +99,40 @@ async function handleAnoPost(
     // ephemeral: true で defer することで「X さんが /ano を使用しました」が公開されず、
     // channel.send() で送信することで実行者名を出さずに全員に見える形で投稿できる。
     if (hasUserConsented(userId)) {
-        await interaction.deferReply({ ephemeral: true });
-        const rawChannel =
-            interaction.channel ??
-            (await interaction.client.channels.fetch(interaction.channelId!).catch(() => null));
-        if (!rawChannel || !rawChannel.isSendable()) {
-            await interaction.editReply({
-                content: "⚠️ このチャンネルへの書き込み権限がありません。",
-            });
-            return;
-        }
-        const me = interaction.guild?.members.me;
-        if (
-            me &&
-            !rawChannel.isDMBased() &&
-            !me.permissionsIn(rawChannel).has(PermissionFlagsBits.SendMessages)
-        ) {
-            await interaction.editReply({
-                content: "⚠️ このチャンネルへの書き込み権限がありません。",
-            });
-            return;
-        }
-        await sendAnonymousPost(rawChannel, {
-            userId,
-            guildId,
+        console.log(`[ano] consented user=${userId} channelId=${channelId} → direct post`);
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+        const channel = await resolveSendableChannel(
+            interaction.client,
             channelId,
-            content,
-            attachmentUrl,
-            attachmentName,
-        });
-        await interaction.editReply({ content: "✅ 匿名メッセージを投稿しました！" });
+            interaction.channel,
+        );
+        console.log(`[ano] resolveSendableChannel result=${channel ? channel.id : "null"}`);
+        if (!channel) {
+            await interaction.editReply({
+                content:
+                    "⚠️ このチャンネルへ投稿できません。ボットに **チャンネルを見る** と **メッセージを送信** 権限を付与してください。",
+            });
+            return;
+        }
+
+        try {
+            await sendAnonymousPost(channel, {
+                userId,
+                guildId,
+                channelId,
+                content,
+                attachmentUrl,
+                attachmentName,
+            });
+            await interaction.editReply({ content: "✅ 匿名メッセージを投稿しました！" });
+        } catch (error) {
+            console.error("[anonymousPost error]:", error);
+            await interaction.editReply({
+                content:
+                    "⚠️ 投稿に失敗しました。ボットの「メッセージを送信」権限を確認してください。",
+            });
+        }
         return;
     }
 
@@ -145,6 +149,9 @@ async function handleAnoPost(
         attachmentName,
         expiresAt: Date.now() + PENDING_TTL_MS,
     });
+    console.log(
+        `[ano] pending stored nonce=${nonce} userId=${userId} mapSize=${client.pendingPosts.size} expiresIn=${PENDING_TTL_MS}ms`,
+    );
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
@@ -160,7 +167,7 @@ async function handleAnoPost(
     await interaction.reply({
         content: readWarning(),
         components: [row],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
     });
 }
 
@@ -168,7 +175,7 @@ export async function executeAnoFromModal(interaction: ModalSubmitInteraction): 
     if (!interaction.inGuild()) {
         await interaction.reply({
             content: "このコマンドはサーバー内でのみ使用できます。",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         return;
     }

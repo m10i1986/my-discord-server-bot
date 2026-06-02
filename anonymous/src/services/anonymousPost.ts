@@ -1,5 +1,5 @@
 import { AttachmentBuilder, EmbedBuilder } from "discord.js";
-import type { SendableChannels } from "discord.js";
+import type { Client, SendableChannels } from "discord.js";
 import { logPost, updateMessageId } from "./database";
 
 export interface AnonymousPostData {
@@ -34,6 +34,33 @@ function buildEmbed(
     }
 
     return { embed, files };
+}
+
+/**
+ * 投稿先チャンネルを解決する。
+ * キャッシュが無い場合は API から取得し、送信可能なチャンネルのみ返す。
+ * 送信権限の有無（SendMessages / SendMessagesInThreads 等）はチャンネル型ごとに
+ * 異なるため事前チェックせず、実際の send() 実行時に判定する。
+ */
+export async function resolveSendableChannel(
+    client: Client,
+    channelId: string,
+    cached: { isSendable(): boolean } | null = null,
+): Promise<SendableChannels | null> {
+    if (cached?.isSendable()) {
+        console.log(`[channel] using cached channel=${channelId}`);
+        return cached as SendableChannels;
+    }
+    console.log(`[channel] cache miss, fetching channel=${channelId}`);
+    const channel = await client.channels.fetch(channelId).catch((e) => {
+        console.error(`[channel] fetch failed channel=${channelId}`, e);
+        return null;
+    });
+    const result = channel?.isSendable() ? channel : null;
+    console.log(
+        `[channel] fetch result=${result ? result.id : "null (not sendable or fetch failed)"}`,
+    );
+    return result;
 }
 
 export async function sendAnonymousPost(

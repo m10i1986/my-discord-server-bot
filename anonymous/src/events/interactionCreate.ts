@@ -1,8 +1,8 @@
-import { type Interaction, PermissionFlagsBits } from "discord.js";
+import { type Interaction } from "discord.js";
 import type { BotClient } from "../client";
 import { executeAno, executeAnoFromModal } from "../ano";
 import { recordConsent } from "../services/database";
-import { sendAnonymousPost } from "../services/anonymousPost";
+import { resolveSendableChannel, sendAnonymousPost } from "../services/anonymousPost";
 
 export async function onInteractionCreate(interaction: Interaction): Promise<void> {
     const client = interaction.client as BotClient;
@@ -52,7 +52,14 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
 
     if (action !== "ano_confirm" && action !== "ano_cancel") return;
 
+    console.log(
+        `[btn] action=${action} nonce=${nonce} userId=${interaction.user.id} mapSize=${client.pendingPosts.size}`,
+    );
+
     const pending = client.pendingPosts.get(nonce);
+    console.log(
+        `[btn] pending found=${pending !== undefined}${pending ? ` expiresAt=${pending.expiresAt} now=${Date.now()} ttlLeft=${pending.expiresAt - Date.now()}ms` : ""}`,
+    );
 
     if (!pending) {
         await interaction.update({
@@ -73,7 +80,8 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
     if (Date.now() > pending.expiresAt) {
         client.pendingPosts.delete(nonce);
         await interaction.update({
-            content: "⏱️ 操作が 10 分以内に完了しませんでした。もう一度 `/ano` を実行してください。",
+            content:
+                "⏱️ 操作が 有効期限内に完了しませんでした。もう一度 `/ano` を実行してください。",
             components: [],
         });
         return;
@@ -86,36 +94,29 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
         return;
     }
 
+    recordConsent(pending.userId);
+
+    const channel = await resolveSendableChannel(client, pending.channelId, interaction.channel);
+    console.log(
+        `[btn] resolveSendableChannel channelId=${pending.channelId} result=${channel ? channel.id : "null"}`,
+    );
+    if (!channel) {
+        await interaction.update({
+            content:
+                "⚠️ このチャンネルへ投稿できません。ボットに **チャンネルを見る** と **メッセージを送信** 権限を付与してください。",
+            components: [],
+        });
+        return;
+    }
+
     try {
-        recordConsent(pending.userId);
-        const rawChannel =
-            interaction.channel ??
-            (await interaction.client.channels.fetch(interaction.channelId).catch(() => null));
-        if (!rawChannel || !rawChannel.isSendable()) {
-            await interaction.update({
-                content: "⚠️ このチャンネルへの書き込み権限がありません。",
-                components: [],
-            });
-            return;
-        }
-        const me = interaction.guild?.members.me;
-        if (
-            me &&
-            !rawChannel.isDMBased() &&
-            !me.permissionsIn(rawChannel).has(PermissionFlagsBits.SendMessages)
-        ) {
-            await interaction.update({
-                content: "⚠️ このチャンネルへの書き込み権限がありません。",
-                components: [],
-            });
-            return;
-        }
-        await sendAnonymousPost(rawChannel, pending);
+        console.log(`[btn] calling sendAnonymousPost channelId=${channel.id}`);
+        await sendAnonymousPost(channel, pending);
         await interaction.update({ content: "✅ 匿名メッセージを投稿しました！", components: [] });
     } catch (error) {
         console.error("[anonymousPost error]:", error);
-        await interaction.editReply({
-            content: "⚠️ 投稿中にエラーが発生しました。",
+        await interaction.update({
+            content: "⚠️ 投稿に失敗しました。ボットの「メッセージを送信」権限を確認してください。",
             components: [],
         });
     }
