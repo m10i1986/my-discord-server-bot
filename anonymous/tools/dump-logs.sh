@@ -85,8 +85,14 @@ dump_yaml() {
 
     # YAML 生成（Unit Separator \x1f で列を区切り）
     generate_yaml() {
+        # SQLiteレベルで特殊文字をエスケープ: \ → \\, CR → \r, LF → \n, " → \"
+        # これにより read コマンドがフィールド内改行で誤分割するのを防ぐ
+        local escaped_cols=()
+        for col in "${columns[@]}"; do
+            escaped_cols+=("replace(replace(replace(replace(\"${col}\", char(92), '\\\\'), char(13), '\\r'), char(10), '\\n'), char(34), '\\\"') AS \"${col}\"")
+        done
         local col_list
-        col_list=$(IFS=','; echo "${columns[*]}")
+        col_list=$(IFS=','; echo "${escaped_cols[*]}")
 
         sqlite3 -separator $'\x1f' "$DB_PATH" "SELECT ${col_list} FROM ${table};" | \
         while IFS=$'\x1f' read -r -a values; do
@@ -94,11 +100,9 @@ dump_yaml() {
             for i in "${!columns[@]}"; do
                 local key="${columns[$i]}"
                 local val="${values[$i]:-}"
-                # 値に特殊文字が含まれる場合はクォート
+                # \n \r またはYAML特殊文字を含む場合はダブルクォートで囲む
                 local yaml_special_re='[:#|>{}\[\]&*!%@,]'
-                if [[ "$val" =~ $yaml_special_re || "$val" == *$'\n'* ]]; then
-                    val="${val//\\/\\\\}"
-                    val="${val//\"/\\\"}"
+                if [[ "$val" == *'\n'* || "$val" == *'\r'* || "$val" =~ $yaml_special_re ]]; then
                     printf '    %s: "%s"\n' "$key" "$val"
                 else
                     printf '    %s: %s\n' "$key" "${val:-null}"

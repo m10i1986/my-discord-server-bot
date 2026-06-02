@@ -3,6 +3,7 @@ import {
     ButtonBuilder,
     ButtonStyle,
     ModalBuilder,
+    PermissionFlagsBits,
     TextInputBuilder,
     TextInputStyle,
     SlashCommandBuilder,
@@ -99,14 +100,27 @@ async function handleAnoPost(
     // channel.send() で送信することで実行者名を出さずに全員に見える形で投稿できる。
     if (hasUserConsented(userId)) {
         await interaction.deferReply({ ephemeral: true });
-        const channel = interaction.channel;
-        if (!channel || !channel.isSendable()) {
+        const rawChannel =
+            interaction.channel ??
+            (await interaction.client.channels.fetch(interaction.channelId!).catch(() => null));
+        if (!rawChannel || !rawChannel.isSendable()) {
             await interaction.editReply({
                 content: "⚠️ このチャンネルへの書き込み権限がありません。",
             });
             return;
         }
-        await sendAnonymousPost(channel, {
+        const me = interaction.guild?.members.me;
+        if (
+            me &&
+            !rawChannel.isDMBased() &&
+            !me.permissionsIn(rawChannel).has(PermissionFlagsBits.SendMessages)
+        ) {
+            await interaction.editReply({
+                content: "⚠️ このチャンネルへの書き込み権限がありません。",
+            });
+            return;
+        }
+        await sendAnonymousPost(rawChannel, {
             userId,
             guildId,
             channelId,

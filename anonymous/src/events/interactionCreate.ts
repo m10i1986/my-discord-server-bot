@@ -1,4 +1,4 @@
-import { type Interaction } from "discord.js";
+import { type Interaction, PermissionFlagsBits } from "discord.js";
 import type { BotClient } from "../client";
 import { executeAno, executeAnoFromModal } from "../ano";
 import { recordConsent } from "../services/database";
@@ -88,15 +88,29 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
 
     try {
         recordConsent(pending.userId);
-        const channel = interaction.channel;
-        if (!channel || !channel.isSendable()) {
+        const rawChannel =
+            interaction.channel ??
+            (await interaction.client.channels.fetch(interaction.channelId).catch(() => null));
+        if (!rawChannel || !rawChannel.isSendable()) {
             await interaction.update({
                 content: "⚠️ このチャンネルへの書き込み権限がありません。",
                 components: [],
             });
             return;
         }
-        await sendAnonymousPost(channel, pending);
+        const me = interaction.guild?.members.me;
+        if (
+            me &&
+            !rawChannel.isDMBased() &&
+            !me.permissionsIn(rawChannel).has(PermissionFlagsBits.SendMessages)
+        ) {
+            await interaction.update({
+                content: "⚠️ このチャンネルへの書き込み権限がありません。",
+                components: [],
+            });
+            return;
+        }
+        await sendAnonymousPost(rawChannel, pending);
         await interaction.update({ content: "✅ 匿名メッセージを投稿しました！", components: [] });
     } catch (error) {
         console.error("[anonymousPost error]:", error);
